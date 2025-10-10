@@ -10,7 +10,6 @@ import { IVerifier } from './Verifier.sol';
 contract Oracle {
     /// @notice Address of the UltraHonk verifier contract
     IVerifier public immutable verifier;
-
     /// @notice Struct to store verified attestation data
     struct VerifiedAttestation {
         bytes32 notaryPubKeyX;

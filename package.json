@@ -11,7 +11,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@aztec/bb.js": "^0.87.0",
+    "@aztec/bb.js": "1.2.0",
     "@mysten/bcs": "^1.8.0",
     "@noble/hashes": "^2.0.1",
     "@noble/secp256k1": "^3.0.0",
