@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
-
-interface IUltraVerifier {
-    function verify(bytes calldata _proof, bytes32[] calldata _publicInputs) external view returns (bool);
-}
+import { IVerifier } from './Verifier.sol';
 
 /**
  * @title Oracle
@@ -12,7 +9,7 @@ interface IUltraVerifier {
  */
 contract Oracle {
     /// @notice Address of the UltraHonk verifier contract
-    IUltraVerifier public immutable verifier;
+    IVerifier public immutable verifier;
 
     /// @notice Struct to store verified attestation data
     struct VerifiedAttestation {
@@ -53,7 +50,7 @@ contract Oracle {
      * @param _verifier Address of the deployed UltraHonk verifier contract
      */
     constructor(address _verifier) {
-        verifier = IUltraVerifier(_verifier);
+        verifier = IVerifier(_verifier);
     }
 
     /**
