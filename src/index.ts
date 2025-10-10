@@ -1,28 +1,48 @@
 import { Buffer } from 'buffer';
-import { writeFile } from 'fs/promises';
+import { writeFile, readFile } from 'fs/promises';
 import type { OracleResponse } from './types.js';
-import { verifyNotarySignature, displayVerificationInfo, prepareNoirInputs } from './verify.js';
+import { verifyNotarySignature, displayVerificationInfo, prepareNoirInputs, verifyBodyCommitment, TypedHashSchema, HashSchema } from './verify.js';
 import { Noir } from '@noir-lang/noir_js';
 import { UltraHonkBackend } from '@aztec/bb.js';
 import verifierCircuit from '../circuits/verifier/target/verifier.json' with { type: 'json' };
 
+// Check if --use-saved flag is present
+const USE_SAVED_DATA = process.argv.includes('--use-saved');
+
 // Main function to fetch and parse the presentation
 async function fetchAndParsePriceData() {
   try {
-    console.log('Fetching price data from oracle...');
+    let data: OracleResponse;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    if (USE_SAVED_DATA) {
+      console.log('Using saved presentation data from presentation_data.json...');
+      const savedData = JSON.parse(await readFile('presentation_data.json', 'utf-8'));
 
-    const response = await fetch('http://localhost:3000/price', {
-      signal: controller.signal,
-    }).finally(() => clearTimeout(timeoutId));
+      // We need to serialize the header from the presentation
+      // This will be done in the verification function
+      data = {
+        presentation_json: savedData.raw_presentation,
+        presentation_bincode: savedData.presentation_bincode_base64,
+        header_serialized: savedData.header_serialized || [], // Use saved or empty array
+        verification: savedData.verification,
+        body_leaf_hashes: []
+      };
+    } else {
+      console.log('Fetching price data from oracle...');
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+      const response = await fetch('http://localhost:3000/price', {
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      data = await response.json();
     }
-
-    const data: OracleResponse = await response.json();
 
     console.log('\n=== VERIFICATION RESULT ===');
     console.log('Verified:', data.verification.verified);
@@ -32,6 +52,15 @@ async function fetchAndParsePriceData() {
     console.log('Price:', data.verification.price);
     console.log('Notary Public Key:', data.verification.notary_pubkey);
 
+
+    data.body_leaf_hashes.forEach((hash)=>{
+      // console.log(HashSchema.parse(Buffer.from(hash)).value)
+      console.log(Buffer.from(hash).toString('hex'))
+    })
+    data.body_leaf_hashes.forEach((hash)=>{
+      console.log(Buffer.from(HashSchema.parse(Buffer.from(hash)).value).toString('hex'))
+      // console.log(Buffer.from(bcs.bytes(hash.length).parse(Buffer.from(hash))).toString('hex'))
+    })
     // Parse presentation data
     const presentation = data.presentation_json;
 
@@ -99,6 +128,9 @@ async function fetchAndParsePriceData() {
     // Display detailed verification information
     displayVerificationInfo(presentation);
 
+    // Verify the body commitment
+    verifyBodyCommitment(presentation);
+
     // Verify the Notary's signature (using Rust-serialized header if available)
     const verificationResult = await verifyNotarySignature(
       presentation,
@@ -116,6 +148,7 @@ async function fetchAndParsePriceData() {
     console.log('='.repeat(50));
 
     // === NOIR ZERO-KNOWLEDGE PROOF ===
+    let proofData: any = null;
     if (verificationResult.isValid) {
       console.log('\n=== GENERATING NOIR ZK PROOF ===');
 
@@ -131,17 +164,32 @@ async function fetchAndParsePriceData() {
       console.log(`Witness size: ${witness.length}`);
 
       console.log('\nGenerating proof... ⏳');
-      const proof = await backend.generateProof(witness);
+      const proof = await backend.generateProof(witness, {keccakZK: true});
       console.log('Generated proof ✅');
       console.log(`Proof bytes length: ${proof.proof.length}`);
+      console.log(`Expected proof length: ${507 * 32} (507 * 32)`);
+      console.log(`Public inputs count: ${proof.publicInputs?.length || 0}`);
 
       console.log('\nVerifying proof... ⌛');
-      const isValidProof = await backend.verifyProof(proof);
+      const isValidProof = await backend.verifyProof(proof, {keccakZK: true});
 
       console.log('\n' + '='.repeat(50));
       if (isValidProof) {
         console.log('🎉 NOIR ZK PROOF: VALID ✅');
         console.log('The zero-knowledge proof is valid!');
+
+        // Prepare proof data for Solidity contract
+        // The proof object from bb.js contains the proof bytes and public inputs
+        console.log('\nProof object keys:', Object.keys(proof));
+        console.log('Proof.proof type:', typeof proof.proof);
+        console.log('Proof.publicInputs', proof.publicInputs);
+
+        proofData = {
+          proof: Array.from(proof.proof),
+          proofHex: Buffer.from(proof.proof).toString('hex'),
+          publicInputs: proof.publicInputs,
+          price: data.verification.price,
+        };
       } else {
         console.log('❌ NOIR ZK PROOF: INVALID');
       }
@@ -151,6 +199,7 @@ async function fetchAndParsePriceData() {
     // Prepare data to save
     const outputData = {
       verification: data.verification,
+      header_serialized: data.header_serialized, // Save header_serialized for testing
       cryptographic_data: {
         notary_pubkey: notaryPubkeyHex,
         signature_algorithm: sigAlgName,
@@ -182,6 +231,16 @@ async function fetchAndParsePriceData() {
 
     console.log('\n✅ Data saved to presentation_data.json');
 
+    // Save proof data for Solidity contract testing
+    if (proofData) {
+      await writeFile(
+        'contracts/test/fixtures/proof_data.json',
+        JSON.stringify(proofData, null, 2),
+        'utf-8'
+      );
+      console.log('✅ Proof data saved to contracts/test/fixtures/proof_data.json');
+    }
+
     return outputData;
 
   } catch (error) {
@@ -203,4 +262,9 @@ async function fetchAndParsePriceData() {
 }
 
 // Run the main function
-fetchAndParsePriceData();
+fetchAndParsePriceData().then(() => {
+  process.exit(0);
+}).catch((err) => {
+  console.error('Fatal error:', err);
+  process.exit(1);
+});

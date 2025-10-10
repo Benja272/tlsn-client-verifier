@@ -1,0 +1,1 @@
+bb write_vk -b ./circuits/verifier/target/verifier.json -o ./circuits/verifier/target/ --oracle_hash keccak && bb write_solidity_verifier -k ./circuits/verifier/target/vk -o ./contracts/contracts/Verifier.sol

@@ -4,6 +4,7 @@ export interface OracleResponse {
   presentation_json: Presentation;
   verification: VerificationResult;
   header_serialized: number[];
+  body_leaf_hashes: number[][];
 }
 
 export interface VerificationResult {
@@ -48,7 +49,10 @@ export interface AttestationBody {
     verifying_key: VerifyingKey;
     connection_info: ConnectionInfo;
     server_ephemeral_key: ServerKey;
-    cert_commitment: Hash;
+    cert_commitment: {
+      id: number;
+      data: Hash;
+    };
     transcript_commitments: TranscriptCommitment[];
     extensions: any[];
   };

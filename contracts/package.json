@@ -1,0 +1,21 @@
+{
+  "name": "contracts",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "hardhat test",
+    "test:oracle": "hardhat test test/Oracle.ts",
+    "compile": "hardhat compile",
+    "deploy": "hardhat ignition deploy ignition/modules/Oracle.ts",
+    "deploy:local": "hardhat ignition deploy ignition/modules/Oracle.ts --network hardhatMainnet"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ignition": "^3.0.3",
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.0",
+    "@types/node": "^22.18.8",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.4",
+    "hardhat": "^3.0.7",
+    "typescript": "~5.8.0",
+    "viem": "^2.38.0"
+  }
+}
