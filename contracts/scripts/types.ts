@@ -1,10 +1,30 @@
 // Type definitions based on TLSNotary Presentation structure
+
+export interface HashProofData {
+  hash_algorithm: number;        // 1 = SHA256
+  committed_hash: number[];      // 32 bytes
+  plaintext: string;             // Full HTTP response
+  price_range: { start: number; end: number };
+  blinder: number[];             // 16 bytes
+  direction: string;             // "Sent" or "Received"
+}
+
+export interface BodyMerkleProof {
+  root: number[];                // 32 bytes (from header)
+  all_field_hashes: number[][];  // All 5 field hashes from oracle
+  leaf_index: number;            // Position in field_hashes (should be 4)
+  leaf_count: number;            // Total leaves in tree (should be 5)
+  proof_hashes: number[][];      // Sibling hashes (empty from oracle, computed off-chain)
+}
+
 export interface OracleResponse {
   presentation_bincode: string;
   presentation_json: Presentation;
   verification: VerificationResult;
   header_serialized: number[];
-  body_leaf_hashes: number[][];
+  field_hashes: number[][];
+  hash_proof: HashProofData;
+  body_merkle_proof: BodyMerkleProof;
 }
 
 export interface VerificationResult {

@@ -1,57 +1,175 @@
-# Sample Hardhat 3 Beta Project (`node:test` and `viem`)
+# TLSNotary Price Oracle - Smart Contract Verification
 
-This project showcases a Hardhat 3 Beta project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+On-chain verification of TLSNotary proofs from the Binance oracle. This creates a trustless bridge between off-chain API data and smart contracts.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## ⚠️ Learning Version
 
-## Project Overview
+**This is simplified for education.** Signature verification is simplified (always returns true). For production, compute `fieldHash` on-chain or run your own oracle infrastructure.
 
-This example project includes:
+## What Gets Verified
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+1. **Hash Opening** (SHA-256): `SHA256(plaintext || blinder) == committedHash`
+2. **Merkle Proof** (SHA-256): Proves commitment is in the signed attestation
+3. **Signature** (secp256k1): Verifies notary signed the data (simplified)
 
-## Usage
+## Quick Start
 
-### Running Tests
+### Prerequisites
 
-To run all the tests in the project, execute the following command:
+You need the oracle servers running (see [parent README](../README.md)):
 
-```shell
-npx hardhat test
+```bash
+# Terminal 1: Notary server
+NS_NOTARIZATION__SIGNATURE_ALGORITHM=secp256k1eth cargo run --bin notary-server
+
+# Terminal 2: Oracle server
+USE_LOCAL_NOTARY=1 cargo run --example binance_oracle_server
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+### Install & Test
 
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
+```bash
+cd contracts
+npm install
+npm run compile
+npm test
 ```
 
-### Make a deployment to Sepolia
+Expected: 5-7 passing tests including hash opening, Merkle proof, signature verification, price updates, and replay protection.
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+## End-to-End Example
 
-To run the deployment to a local chain:
+### 1. Start Local Node
 
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+```bash
+npx hardhat node
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+### 2. Fetch Oracle Data
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+In another terminal:
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+```bash
+npm run update-price
+```
 
-```shell
+This fetches current BTC price from oracle and creates `test/fixtures/proof_data.json`.
+
+### 3. Run Complete Example
+
+```bash
+npm run example
+```
+
+This script:
+- ✅ Deploys TLSNotaryVerifier and PriceOracle contracts
+- ✅ Submits TLSNotary proof to verify and store price on-chain
+- ✅ Queries the verified price
+- ✅ Tests replay attack protection
+
+**Output:**
+```
+✅ SUCCESS! Price verified and stored on-chain:
+Symbol: BTCUSDT
+Price: 110522.39000000
+Block Number: 2
+Submitter: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+```
+
+## Architecture
+
+```
+Oracle Server (localhost:3000)
+    ↓ HTTP
+Off-Chain Script (update_price.ts)
+    ↓ Prepare proof data
+Smart Contract (PriceOracle.sol)
+    ├─ TLSNotaryVerifier.verifyTLSNotaryProof()
+    │   ├─ verifyHashOpening()
+    │   ├─ verifyMerkleProof()
+    │   └─ verifyNotarySignature()
+    └─ Store verified price on-chain
+```
+
+## Project Structure
+
+```
+contracts/
+├── contracts/
+│   ├── TLSNotaryVerifier.sol    # Crypto verification
+│   └── PriceOracle.sol           # Price storage
+├── test/
+│   └── PriceOracle.ts            # Integration tests
+├── scripts/
+│   ├── update_price.ts           # Fetch from oracle
+│   └── example_e2e.ts            # Complete demo
+└── ignition/modules/
+    └── PriceOracle.ts            # Deployment
+```
+
+## Gas Costs
+
+| Operation | Gas Cost |
+|-----------|----------|
+| Deploy contracts | ~1.3M (one-time) |
+| Update price | ~180k |
+| Query price | 0 (view) |
+
+## Deployment
+
+### Local
+
+```bash
+npm run deploy:local
+```
+
+### Testnet (Sepolia)
+
+```bash
 npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+npx hardhat ignition deploy --network sepolia ignition/modules/PriceOracle.ts
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
+### Custom Notary
 
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+```bash
+npx hardhat ignition deploy \
+  --parameters '{"PriceOracleModule":{"trustedNotaryPubkey":"0x03..."}}' \
+  ignition/modules/PriceOracle.ts
 ```
+
+## Common Issues
+
+**"UntrustedNotary" error**: Notary pubkey mismatch. Update contract or regenerate proof data.
+
+**"ProofAlreadyUsed" error**: Trying to replay same proof. Fetch fresh data: `npm run update-price`
+
+**Tests failing**: Ensure oracle is running at `localhost:3000`, then regenerate test data.
+
+## Production Considerations
+
+For production use:
+
+1. **Compute `fieldHash` on-chain** (~50k extra gas) - closes security gap
+2. **Run your own infrastructure** - deploy your own notary + oracle
+3. **Multi-oracle consensus** - query multiple sources
+4. **Deploy on L2** - 10x cheaper gas costs
+
+## Scripts
+
+```bash
+npm test              # Run all tests
+npm run update-price  # Fetch proof from oracle
+npm run example       # Run end-to-end demo
+npm run deploy:local  # Deploy to local node
+```
+
+## Learn More
+
+- [TLSNotary Docs](https://docs.tlsnotary.org)
+- [Parent README](../README.md) - Complete oracle setup
+- [TLSNotary Discord](https://discord.gg/9XwESXtcN7)
+
+---
+
+**License**: MIT | **Security**: Educational use only - see production considerations above

@@ -5,9 +5,12 @@
   "scripts": {
     "test": "hardhat test",
     "test:oracle": "hardhat test test/Oracle.ts",
+    "update-price": "tsx scripts/update_price.ts",
+    "key-gen": "tsx scripts/key-gen.ts",
     "compile": "hardhat compile",
-    "deploy": "hardhat ignition deploy ignition/modules/Oracle.ts",
-    "deploy:local": "hardhat ignition deploy ignition/modules/Oracle.ts --network hardhatMainnet"
+    "deploy": "hardhat ignition deploy ignition/modules/PriceOracle.ts",
+    "deploy:local": "hardhat ignition deploy ignition/modules/PriceOracle.ts --network hardhatMainnet",
+    "example": "tsx scripts/example_e2e.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.3",
@@ -17,5 +20,8 @@
     "hardhat": "^3.0.7",
     "typescript": "~5.8.0",
     "viem": "^2.38.0"
+  },
+  "dependencies": {
+    "ethers": "^6.15.0"
   }
 }
