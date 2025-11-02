@@ -2,6 +2,20 @@
 
 On-chain verification of TLSNotary proofs from the Binance oracle. This creates a trustless bridge between off-chain API data and smart contracts.
 
+## Project Structure
+
+This project consists of two repositories:
+
+1. **[TLSNotary Oracle Server](https://github.com/Benja272/tlsn)** - Rust implementation
+   - Fetches BTC price from Binance API via TLSNotary
+   - Generates cryptographic proofs (hash commitments, Merkle proofs, signatures)
+   - Runs notary server and oracle HTTP server
+
+2. **This Repository** - Smart Contract Verification (Solidity + TypeScript)
+   - On-chain verification of TLSNotary proofs
+   - Price oracle storage with replay protection
+   - Integration tests and deployment scripts
+
 ## ⚠️ Learning Version
 
 **This is simplified for education.** Signature verification is simplified (always returns true). For production, compute `fieldHash` on-chain or run your own oracle infrastructure.
@@ -166,8 +180,14 @@ npm run deploy:local  # Deploy to local node
 
 ## Learn More
 
-- [TLSNotary Docs](https://docs.tlsnotary.org)
-- [Parent README](../README.md) - Complete oracle setup
+### Related Repositories
+
+- **[TLSNotary Oracle Server](https://github.com/Benja272/tlsn)** - Rust implementation of the oracle and notary server
+- **[TLSNotary Official](https://github.com/tlsnotary/tlsn)** - Official TLSNotary protocol implementation
+
+### Documentation
+
+- [TLSNotary Documentation](https://docs.tlsnotary.org)
 - [TLSNotary Discord](https://discord.gg/9XwESXtcN7)
 
 ---
